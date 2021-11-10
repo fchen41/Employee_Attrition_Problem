@@ -114,3 +114,68 @@ calculate_attrition_cost <- function(
 # Calculate Cost by Job Role----
 dept_job_role_tbl_2 %>% 
   mutate(cost_of_attrition = calculate_attrition_cost(n = n))
+
+# Workflow of Attrition----
+
+count_to_pct <- function(data, ..., col = n) {
+  grouping_vars_expr <- quos(...)
+  col_expr <- enquo(col)
+  
+  return <- data %>% 
+    group_by(!!!grouping_vars_expr) %>% 
+    mutate(pct = (!! col_expr) / sum(!! col_expr)) %>% 
+    ungroup() 
+  
+  return(return)
+}
+
+assess_attrition <- function(data, attrition_col, attrition_value, baseline_pct) {
+  
+  attrition_col_expr <- enquo(attrition_col)
+  
+  data %>% 
+    filter((!! attrition_col_expr) %in% attrition_value) %>% 
+    arrange(desc(pct)) %>% 
+    mutate(
+      above_industry_avg = ifelse(pct > baseline_pct, "Yes", "No") 
+    )
+}
+
+dept_job_role_tbl %>% 
+  count(Department, JobRole, Attrition) %>% 
+  count_to_pct(Department, JobRole) %>% 
+  assess_attrition(Attrition, attrition_value = "Yes", baseline_pct = 0.088) %>% 
+  mutate(
+    cost_of_attrition = calculate_attrition_cost(n = n, salary = 80000)
+  )
+
+# Visualization of Attrition Cost----
+
+dept_job_role_tbl %>% 
+  count(Department, JobRole, Attrition) %>% 
+  count_to_pct(Department, JobRole) %>% 
+  assess_attrition(Attrition, attrition_value = "Yes", baseline_pct = 0.088) %>% 
+  mutate(
+    cost_of_attrition = calculate_attrition_cost(n = n, salary = 80000)
+  ) %>% 
+
+# Data Manipulation
+  mutate(name = str_c(Department, JobRole, sep = ": ") %>% as_factor()) %>% 
+  # pull(name) %>% 
+  # levels()
+  mutate(name = fct_reorder(name, cost_of_attrition)) %>% 
+  mutate(cost_text = str_c("$", format(cost_of_attrition / 1e6, digits = 2), 
+                           "M", sep = "")) %>% 
+  # Plotting
+  ggplot(aes(x = cost_of_attrition, y = name)) +
+  geom_segment(aes(xend = 0, yend = name), color = palette_light()[[1]]) + 
+  geom_point(aes(size = cost_of_attrition), color = palette_light()[[1]]) + 
+  scale_x_continuous(labels = scales::dollar) + 
+  geom_label(aes(label = cost_text, size = cost_of_attrition), 
+             hjust = "inward", color = palette_light()[[1]]) + 
+  theme_tq() + 
+  scale_size(range = c(3, 5)) + 
+  labs(title = "Estimated Cost of Attrition: By Dept and Job Role", 
+       y = "", x = "Cost of Attrition") + 
+  theme(legend.position = "none")
+

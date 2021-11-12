@@ -228,6 +228,7 @@ dept_job_role_tbl %>%
   labs(
     title = "Estimated Cost of Attrition by Job Roles", 
     x = "Cost of Attrition", 
+    y = "", 
     subtitle = "Looks like sales executive and laboratory technician are the biggest drivers of cost"
   )
 
